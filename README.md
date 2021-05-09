@@ -1,6 +1,6 @@
 # Binance Anomaly Detection
 
-Real-time anomaly detection based on the percentage price change of the cryptocurrency lowest of the low price since the previous 5h open.
+Real-time anomaly detection based on the percentage price change of the cryptocurrency lowest of the low price since the previous 1 hour open.
 
 ## Usage
 ```sh
