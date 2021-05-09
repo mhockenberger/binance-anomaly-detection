@@ -4,5 +4,10 @@ Real-time anomaly detection based on the percentage price change of the cryptocu
 
 ## Usage
 ```sh
-binance-anomaly.py [-h] [--symbol [SYMBOL]] 
+$ python binance-anomaly.py
+
+optional arguments:
+  -h, --help                        show this help message and exit
+  --symbol [SYMBOL], -s             [SYMBOL]
+  --threshold [THRESHOLD], -t       [THRESHOLD]
 ```
