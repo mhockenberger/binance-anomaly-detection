@@ -1,6 +1,7 @@
 import argparse
 
 import logging
+import threading
 import time
 import os
 import numpy as np
@@ -20,33 +21,27 @@ logging.basicConfig(
 
 parser = argparse.ArgumentParser(description='Binance Anomalies')
 parser.add_argument(
-    '--symbol',
+    '--symbols',
     '-s',
     nargs='?',
     const=1,
-    type=str,
-    default='ADAUSDT')
+    type=list,
+    default=['ADAUSDT', 'DOGEUSDT'])
 parser.add_argument(
-    '--threshold',
+    '--thresholds',
     '-t',
     nargs='?',
     const=1,
-    type=float,
-    default=18)
+    type=list,
+    default=[18, 18])
 
 args = parser.parse_args()
 
-if args.symbol:
-    symbol = args.symbol.upper()
-    threshold = args.threshold
 
-    api_key = os.environ.get('binance_api')
-    api_secret = os.environ.get('binance_secret')
-
-    client = Client(api_key, api_secret)
-
+def get_anomaly(client, symbol, threshold):
     binance_manager = BinanceWebSocketApiManager(
         exchange='binance.com', output_default='dict')
+    binance_manager.create_stream('kline_1h', symbol)
 
     cols = {
         't': 'start_time',
@@ -67,14 +62,13 @@ if args.symbol:
         'Q': 'quote_volume_of_active_buy'
     }
 
-    binance_manager.create_stream('kline_1h', symbol)
-
     result = PrettyTable()
     result.field_names = [
+        'symbol',
         'datetime',
         'final_bar',
-        'open_bar1',
-        'lowest_low',
+        'open_5',
+        'low',
         'pct_change_lowest_low',
         'anomaly']
 
@@ -96,30 +90,49 @@ if args.symbol:
                     df.set_index('datetime', drop=True, inplace=True)
                     df = df.iloc[0]
 
-                    open_bar1 = float(
+                    open_5 = float(
                         client.get_historical_klines(
-                            args.symbol,
+                            symbol,
                             Client.KLINE_INTERVAL_1HOUR,
-                            '2 hour ago UTC')[0][1])
+                            '6 hour ago UTC')[0][1])
                     df['pct_change_low'] = (
-                        ((float(df['low']) - open_bar1) / open_bar1) * 100)
+                        ((float(df['low']) - open_5) / open_5) * 100)
 
                     if df['pct_change_low'] < lowest_low:
                         lowest_low = df['pct_change_low']
-                        anomaly = np.where(lowest_low <= -threshold,
-                                           True, False)
+                        anomaly = (lowest_low <= -threshold)
 
                         df['pct_change_lowest_low'] = lowest_low
 
-                        result.add_row([df.name,
+                        result.add_row([symbol,
+                                        df.name,
                                         df['final_bar'],
-                                        round(open_bar1, 4),
-                                        round(lowest_low, 4),
+                                        round(open_5, 4),
+                                        round(float(df['low']), 4),
                                         round(df['pct_change_lowest_low'], 4),
                                         anomaly])
                         print(result)
 
                     if df['final_bar']:
                         lowest_low = 0
+
+
+if args.symbols:
+    api_key = os.environ.get('binance_api')
+    api_secret = os.environ.get('binance_secret')
+
+    client = Client(api_key, api_secret)
+
+    threads = list()
+    for symbol in args.symbols:
+        thread = threading.Thread(target=get_anomaly, args=(
+            client,
+            symbol,
+            dict(zip(args.symbols, args.thresholds))[symbol]))
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
 else:
-    print('Missing symbol.')
+    print('Missing symbols.')
