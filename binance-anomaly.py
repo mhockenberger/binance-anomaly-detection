@@ -18,20 +18,27 @@ logging.basicConfig(
     format='{asctime} [{levelname:8}] {process} {thread} {module}: {message}',
     style='{')
 
-parser = argparse.ArgumentParser(description='Binance Signals')
+parser = argparse.ArgumentParser(description='Binance Anomalies')
 parser.add_argument(
     '--symbol',
     '-s',
     nargs='?',
     const=1,
     type=str,
-    default='ADAUSDT',
-    help='symbol flag')
+    default='ADAUSDT')
+parser.add_argument(
+    '--threshold',
+    '-t',
+    nargs='?',
+    const=1,
+    type=float,
+    default=18)
 
 args = parser.parse_args()
 
 if args.symbol:
-    markets = {args.symbol.upper()}
+    symbol = args.symbol.upper()
+    threshold = args.threshold
 
     api_key = os.environ.get('binance_api')
     api_secret = os.environ.get('binance_secret')
@@ -60,16 +67,16 @@ if args.symbol:
         'Q': 'quote_volume_of_active_buy'
     }
 
-    binance_manager.create_stream('kline_1h', markets)
+    binance_manager.create_stream('kline_1h', symbol)
 
     result = PrettyTable()
     result.field_names = [
-        "datetime",
-        "final_bar",
-        "open_bar1",
-        "lowest_low",
-        "pct_change_lowest_low",
-        "anomaly"]
+        'datetime',
+        'final_bar',
+        'open_bar1',
+        'lowest_low',
+        'pct_change_lowest_low',
+        'anomaly']
 
     lowest_low = 0
 
@@ -93,23 +100,26 @@ if args.symbol:
                         client.get_historical_klines(
                             args.symbol,
                             Client.KLINE_INTERVAL_1HOUR,
-                            "2 hour ago UTC")[0][1])
+                            '2 hour ago UTC')[0][1])
                     df['pct_change_low'] = (
                         ((float(df['low']) - open_bar1) / open_bar1) * 100)
 
                     if df['pct_change_low'] < lowest_low:
                         lowest_low = df['pct_change_low']
+                        anomaly = np.where(lowest_low <= -threshold,
+                                           True, False)
 
-                    df['pct_change_lowest_low'] = lowest_low
+                        df['pct_change_lowest_low'] = lowest_low
 
-                    anomaly = np.where(
-                        df['pct_change_lowest_low'] <= -(20 * 0.9), True, False)
-
-                    result.add_row([df.name, df['final_bar'], open_bar1, lowest_low, round(
-                        df['pct_change_lowest_low'], 4), anomaly])
-                    print(result)
+                        result.add_row([df.name,
+                                        df['final_bar'],
+                                        round(open_bar1, 4),
+                                        round(lowest_low, 4),
+                                        round(df['pct_change_lowest_low'], 4),
+                                        anomaly])
+                        print(result)
 
                     if df['final_bar']:
                         lowest_low = 0
 else:
-    print('Missing symbol')
+    print('Missing symbol.')
