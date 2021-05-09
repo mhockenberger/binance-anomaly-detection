@@ -33,7 +33,7 @@ parser.add_argument(
     nargs='?',
     const=1,
     type=list,
-    default=[18, 18])
+    default=[18, 28])
 
 args = parser.parse_args()
 
@@ -67,7 +67,7 @@ def get_anomaly(client, symbol, threshold):
         'symbol',
         'datetime',
         'final_bar',
-        'open_5',
+        'open_1',
         'low',
         'pct_change_lowest_low',
         'anomaly']
@@ -90,13 +90,13 @@ def get_anomaly(client, symbol, threshold):
                     df.set_index('datetime', drop=True, inplace=True)
                     df = df.iloc[0]
 
-                    open_5 = float(
+                    open_1 = float(
                         client.get_historical_klines(
                             symbol,
                             Client.KLINE_INTERVAL_1HOUR,
-                            '6 hour ago UTC')[0][1])
+                            '2 hour ago UTC')[0][1])
                     df['pct_change_low'] = (
-                        ((float(df['low']) - open_5) / open_5) * 100)
+                        ((float(df['low']) - open_1) / open_1) * 100)
 
                     if df['pct_change_low'] < lowest_low:
                         lowest_low = df['pct_change_low']
@@ -107,7 +107,7 @@ def get_anomaly(client, symbol, threshold):
                         result.add_row([symbol,
                                         df.name,
                                         df['final_bar'],
-                                        round(open_5, 4),
+                                        round(open_1, 4),
                                         round(float(df['low']), 4),
                                         round(df['pct_change_lowest_low'], 4),
                                         anomaly])
