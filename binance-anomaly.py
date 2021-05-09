@@ -111,28 +111,40 @@ def get_anomaly(client, symbol, threshold):
                                         round(float(df['low']), 4),
                                         round(df['pct_change_lowest_low'], 4),
                                         anomaly])
-                        print(result)
+
+                        if anomaly:
+                            print(result)
 
                     if df['final_bar']:
                         lowest_low = 0
 
 
-if args.symbols:
-    api_key = os.environ.get('binance_api')
-    api_secret = os.environ.get('binance_secret')
+api_key = os.environ.get('binance_api')
+api_secret = os.environ.get('binance_secret')
 
-    client = Client(api_key, api_secret)
+client = Client(api_key, api_secret)
+exchange_info = client.get_exchange_info()
 
-    threads = list()
-    for symbol in args.symbols:
-        thread = threading.Thread(target=get_anomaly, args=(
-            client,
-            symbol,
-            dict(zip(args.symbols, args.thresholds))[symbol]))
-        threads.append(thread)
-        thread.start()
+threshold = 20
+symbols = open('symbols.txt', 'r').read().split('\n')
 
-    for thread in threads:
-        thread.join()
-else:
-    print('Missing symbols.')
+symbol_threshold_custom = dict(zip(args.symbols, args.thresholds))
+symbol_threshold = dict()
+for s in exchange_info['symbols']:
+    if s['symbol'] in symbols:
+        symbol_threshold[s['symbol']] = threshold
+        for k in symbol_threshold_custom.keys():
+            if k == s['symbol']:
+                symbol_threshold[s['symbol']] = symbol_threshold_custom[k]
+
+threads = list()
+for symbol in symbol_threshold.keys():
+    thread = threading.Thread(target=get_anomaly, args=(
+        client,
+        symbol,
+        symbol_threshold[symbol]))
+    threads.append(thread)
+    thread.start()
+
+for thread in threads:
+    thread.join()
